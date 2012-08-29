@@ -1,0 +1,1 @@
+A simple (Windows and .NET 4.0) based console application that helps you scan through a large IceCat CategoryFeaturesList.xml file.

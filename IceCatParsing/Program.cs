@@ -25,51 +25,98 @@ namespace IceCatParsing
         private static void FindCategoryFeatures()
         {
             //Result
-            var result = new List<FeatureGroup>();
+            var result = new List<Category>();
 
-            Console.WriteLine("Please enter category ID.");
-            var categoryid = Console.ReadLine().Trim();
+            Console.WriteLine("Do you want all category features? (yes/no)");
+            var input = Console.ReadLine().Trim().ToLower();
+            var all = input == "yes" || input == "y";
+            var outputType = AskForOutputType();
+            var languagid = AskForLanguage();
 
-            Console.WriteLine("Please enter the language ID you'd like to return. (e.g. 1 for English, 2 for Dutch, ...)");
-            var languagid = Console.ReadLine().Trim();
+            var selectedCategories = new List<XElement>();
 
-            var category = categories.SingleOrDefault(
-                    e => e.Attribute("ID").Value == categoryid);
-
-            if (category != null)
+            if (all)
             {
-                Console.WriteLine("Category found.");
+                selectedCategories = categories.ToList();
+            }
+            else
+            {
+                XElement category = AskForCategory();
+                if (category != null)
+                {
+                    selectedCategories.Add(category);
+                }
+                
+                XElement extraCategory;
+                bool stop;
+                do
+                {
+                    extraCategory = StopOrContinue(out stop);
+                    if (extraCategory == null){
+                        Console.WriteLine("Category was NOT found.");
+                    }
+                    else
+                    {
+                        selectedCategories.Add(extraCategory);
+                    }
+                } while (!stop);
+            }
+
+            foreach(var category in selectedCategories)
+            {
+                var categoryNames = category.Elements("Name");
+                var id = category.Attribute("ID").Value;
+                var name = id;
+                if (categoryNames != null && categoryNames.Any())
+                {
+                    name = categoryNames.SingleOrDefault(
+                        n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
+                }
+
+                Console.WriteLine("Category " + name + " found.");
+                
                 var groups = category.Elements("CategoryFeatureGroup");
+                var featureGroups = new List<FeatureGroup>();
                 foreach (var group in groups)
                 {
-                    var groupName =
-                        group.Element("FeatureGroup").Elements("Name").SingleOrDefault(
-                            n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
-                    var groupId = group.Attribute("ID").Value;
-                    var featureGroup = new FeatureGroup(Convert.ToInt32(groupId), groupName);
+                    var featuregroup = group.Element("FeatureGroup");
+                    if (featuregroup != null) { 
+                        var names = featuregroup.Elements("Name");
+                        var groupName = names.SingleOrDefault(n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
+                        var groupId = group.Attribute("ID").Value;
+                        var featureGroup = new FeatureGroup(Convert.ToInt32(groupId), groupName);
 
-                    result.Add(featureGroup);
+                        featureGroups.Add(featureGroup);
 
-                    var features =
-                        category.Elements("Feature").Where(
-                            f => f.Attribute("CategoryFeatureGroup_ID").Value == groupId);
+                        var features =
+                            category.Elements("Feature").Where(
+                                f => f.Attribute("CategoryFeatureGroup_ID").Value == groupId);
 
-                    foreach (var feature in features)
-                    {
-                        var featureName = feature.Elements("Name").SingleOrDefault(
-                            n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
-                        var featureId = feature.Attribute("ID").Value;
+                        foreach (var feature in features)
+                        {
+                            var featureName = feature.Elements("Name").SingleOrDefault(
+                                n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
+                            var featureId = feature.Attribute("ID").Value;
 
-                        featureGroup.Features.Add(new Feature(Convert.ToInt32(featureId), featureName));
+                            featureGroup.Features.Add(new Feature(Convert.ToInt32(featureId), featureName));
+                        }
                     }
                 }
-                Console.WriteLine(result.Count + " groups found.");
+                
+                Console.WriteLine(result.Count + " groups found for category " + name);
+                result.Add(new Category(id,name){Groups = featureGroups});
+            }
 
-                var outputType = AskForOutputType();
-                switch (outputType)
-                {
-                    case OutputType.Console:
-                        foreach (var fgroup in result)
+            switch (outputType)
+            {
+                case OutputType.Console:
+                    foreach(var item in result)
+                    {
+                        Console.WriteLine("================================================");
+                        Console.WriteLine(item.Name + " (" + item.Id + ")");
+                        Console.WriteLine("================================================");
+
+                        foreach (var fgroup in item.Groups)
                         {
                             Console.WriteLine(fgroup.Name);
                             Console.WriteLine("******************************");
@@ -81,47 +128,66 @@ namespace IceCatParsing
 
                             Console.WriteLine(Environment.NewLine + Environment.NewLine);
                         }
-                        break;
-                    case OutputType.CSV:
-                        string filePath = category.Attribute("ID").Value + @".csv";
-                        string delimiter = ";";
+                    }
+                    break;
+                case OutputType.CSV:
+
+                    string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icecat.csv");
+
+                    string delimiter = ";";
                         var output = new StringBuilder();
-                        foreach (var fgroup in result)
+                        output.AppendLine(string.Join(delimiter, "CategoyId", "CategoryName", "GroupId", "GroupName", "FeatureId",
+                                                      "FeatureName"));
+                    foreach(var item in result)
+                    {
+                        
+                        foreach (var fgroup in item.Groups)
                         {
                             foreach (var feature in fgroup.Features)
                             {
-                                output.AppendLine(string.Join(delimiter, fgroup.Id, fgroup.Name, feature.Id, feature.Name));
+                                output.AppendLine(string.Join(delimiter, item.Id, item.Name, fgroup.Id, fgroup.Name, feature.Id,
+                                                              feature.Name));
                             }
                         }
-                        File.WriteAllText(filePath, output.ToString());
-                        break;
-                }
-            }
-            else
-            {
-                Console.WriteLine("Category was NOT found.");
-            }
+                        
+                    }
+                    File.WriteAllText(filePath, output.ToString());
 
-            Console.WriteLine("Do you want to find another category (yes/no)?");
-            StopOrContinue();
-
+                    break;
+            }
         }
 
-        private static void StopOrContinue()
+        private static string AskForLanguage()
         {
+            Console.WriteLine("Please enter the language ID you'd like to return. (e.g. 1 for English, 2 for Dutch, ...)");
+            return Console.ReadLine().Trim();
+        }
+
+        private static XElement AskForCategory()
+        {
+            Console.WriteLine("Please enter category ID.");
+            var categoryid = Console.ReadLine().Trim();
+
+            return categories.SingleOrDefault(
+                e => e.Attribute("ID").Value == categoryid);
+        }
+
+        private static XElement StopOrContinue(out bool stop)
+        {
+            Console.WriteLine("Do you want more categories? (yes/no)");
             var answer = Console.ReadLine();
 
+            stop = false;
             switch(answer.ToLower().Trim())
             {
                 case "yes":
-                    FindCategoryFeatures();
-                    break;
+                    return AskForCategory();
                 case "no":
-                    return;
+                    stop = true;
+                    return null;
                 default:
                     Console.WriteLine("We need yes or no");
-                    StopOrContinue();
-                    break;
+                    return StopOrContinue(out stop);
             }
         }
 

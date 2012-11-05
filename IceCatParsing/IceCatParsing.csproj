@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Category.cs" />
     <Compile Include="EnumValueFinder.cs" />
     <Compile Include="FeatureGroup.cs" />
     <Compile Include="Feature.cs" />

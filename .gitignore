@@ -57,3 +57,5 @@ min-*.css
 /UI/images
 
 *.csv
+
+CategoryFeaturesList.xml

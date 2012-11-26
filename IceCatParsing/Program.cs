@@ -11,6 +11,7 @@ namespace IceCatParsing
     {
         private static XDocument doc;
         private static IEnumerable<XElement> categories;
+        private static List<string> eanCodes = new List<string>();
 
         static void Main()
         {

@@ -28,9 +28,10 @@ namespace IceCatParsing
             //Result
             var result = new List<Category>();
 
-            Console.WriteLine("Do you want all category features? (yes/no)");
+            Console.WriteLine("Do you want all category features? (yes/no/some)");
             var input = Console.ReadLine().Trim().ToLower();
             var all = input == "yes" || input == "y";
+            var some = input == "some" || input == "s";
             var outputType = AskForOutputType();
             var languagid = AskForLanguage();
 
@@ -39,6 +40,18 @@ namespace IceCatParsing
             if (all)
             {
                 selectedCategories = categories.ToList();
+            }
+            else if(some)
+            {
+                var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser("codima-selection.csv");
+                parser.TextFieldType = Microsoft.VisualBasic.FileIO.FieldType.Delimited;
+                parser.SetDelimiters(new string[] { ";" });
+
+                while (!parser.EndOfData)
+                {
+                    string categoryId = parser.ReadFields()[0];
+                    selectedCategories.Add(categories.SingleOrDefault(e => e.Attribute("ID").Value == categoryId));
+                }
             }
             else
             {
@@ -95,11 +108,18 @@ namespace IceCatParsing
 
                         foreach (var feature in features)
                         {
-                            var featureName = feature.Elements("Name").SingleOrDefault(
-                                n => n.Attribute("langid").Value == languagid).Attribute("Value").Value;
+                            var featureNameElement = feature.Elements("Name").SingleOrDefault(
+                                n => n.Attribute("langid").Value == languagid);
+                            var featureName = string.Empty;
+                            if(featureNameElement != null)
+                            {
+                                featureName = featureNameElement.Attribute("Value").Value;
+                            }
                             var featureId = feature.Attribute("ID").Value;
-
-                            featureGroup.Features.Add(new Feature(Convert.ToInt32(featureId), featureName));
+                            if (!string.IsNullOrEmpty(featureName))
+                            {
+                                featureGroup.Features.Add(new Feature(Convert.ToInt32(featureId), featureName));
+                            }
                         }
                     }
                 }
